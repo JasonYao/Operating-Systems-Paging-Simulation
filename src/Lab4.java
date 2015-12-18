@@ -18,20 +18,14 @@ public class Lab4
     private static int TOTAL_NUMBER_OF_PAGES;
     private static int GLOBAL_EVICTIONS = 0;
 
-
     private static String RANDOM_NUMBER_FILE_PATH = "random-numbers";
     // Global simulation
     private static FrameTable FRAME_TABLE;
     private static ArrayList<Process> PROCESS_CONTAINER;
-    private static int CURRENT_TIME = 0;
-
-    /* Eviction Policy: least recently used globals */
+    private static int CURRENT_TIME = 1;
 
     /* Eviction Policy: random globals */
     private static int randomReplacementNumber = 0;
-    private static boolean wasEvictedRandom = false;
-
-    /* Eviction Policy: last-in, first-out global */
 
     /**
      * [DONE] Begins the paging simulation
@@ -90,18 +84,17 @@ public class Lab4
                         } // End of dealing with page hit
                         else
                         {
-                           // Page miss
+                            // Page miss
                             if (IS_VERBOSE)
                                 System.out.print("Fault, ");
 
                             PROCESS_CONTAINER.get(i).setNumberOfFaults(PROCESS_CONTAINER.get(i).getNumberOfFaults() + 1);
                             if (FRAME_TABLE.isFull(TOTAL_NUMBER_OF_PAGES))
                             {
-                                System.out.printf("Page table was full, "); //TODO remove after
                                 // Page table was full
 
                                 // Evicts a frame table element based on R: replacement policy
-                                FrameTableElement evictedFrame = evict(lineScanner);
+                                FrameTableElement evictedFrame = evict();
 
                                 if (evictedFrame == null)
                                 {
@@ -133,7 +126,6 @@ public class Lab4
                             } // End of dealing with page miss: page table was full, page was evicted
                             else
                             {
-                                System.out.printf("Page table was not full, "); //TODO remove after
                                 // when page is brought in, OS resets R = M = 0 (R == referenced, M == modified)
                                 if (FRAME_TABLE.isFull(TOTAL_NUMBER_OF_PAGES))
                                 {
@@ -170,8 +162,8 @@ public class Lab4
                                 }
                             } // End of dealing with page miss: page table was not full, free frame was used
                         } // End of dealing with page miss
-                        int randomNumber = getRandomNumber(lineScanner);
 
+                        int randomNumber = getRandomNumber(lineScanner);
                         PROCESS_CONTAINER.get(i).setNextReferencedWord(randomNumber,
                                 PROCESS_SIZE, NUMBER_OF_REFERENCES_PER_PROCESS);
 
@@ -179,10 +171,18 @@ public class Lab4
                         if (IS_RANDOM)
                             System.out.printf("%d uses random number: %d\n", i + 1, randomNumber);
 
-                        if ((IS_RANDOM) && (REPLACEMENT_ALGORITHM.equals("random")) && (wasEvictedRandom))
+                        // Outputs the random number the evictRandom call uses
+                        if ((REPLACEMENT_ALGORITHM.equals("random")) && (willEvictRandomNext(i, currentReference)))
                         {
-                            wasEvictedRandom = false;
-                            System.out.printf("%d uses random number: %d\n", i + 1, randomReplacementNumber);
+                            randomReplacementNumber = getRandomNumber(lineScanner);
+                            if (IS_RANDOM)
+                                System.out.printf("%d uses random number: %d\n", (i + 2) % PROCESS_CONTAINER.size(), randomReplacementNumber);
+                        }
+                        else if ((PROCESS_CONTAINER.get((i) % PROCESS_CONTAINER.size()).isFinished()) && (i != PROCESS_CONTAINER.size() - 1))
+                        {
+                            randomReplacementNumber = getRandomNumber(lineScanner);
+                            if (IS_RANDOM)
+                                System.out.printf("%d uses random number: %d\n", i + 2, randomReplacementNumber);
                         }
                         ++CURRENT_TIME;
                     } // End of the current round of references for that process
@@ -208,7 +208,36 @@ public class Lab4
         }
     } // End of the begin simulation method
 
-    private static FrameTableElement evict(Scanner lineScanner)
+    private static boolean willEvictRandomNext(int i, int currentReferences)
+    {
+        int counter = i;
+
+        if (currentReferences == GLOBAL_QUANTUM - 1)
+        {
+            counter += 1;
+            counter %= PROCESS_CONTAINER.size();
+        }
+
+        // Deals with completed processes
+        if (PROCESS_CONTAINER.get(counter).isFinished())
+            return false;
+
+        if (REPLACEMENT_ALGORITHM.equals("random"))
+        {
+            // Peeks for next time around
+            if (FRAME_TABLE.isHit(counter, PROCESS_CONTAINER.get(counter).getCurrentPage(PAGE_SIZE)))
+                return false;
+            else
+            {
+                // will get page miss next round
+                return FRAME_TABLE.isFull(TOTAL_NUMBER_OF_PAGES);
+            }
+        } // End of dealing with random replacement algorithm
+        else
+            return false;
+    } // End of the peek shows random method
+
+    private static FrameTableElement evict()
     {
         FrameTableElement evictedFrame = null;
         switch (REPLACEMENT_ALGORITHM)
@@ -221,7 +250,7 @@ public class Lab4
             }
             case "random":
             {
-                evictedFrame = evictRandom(lineScanner);
+                evictedFrame = evictRandom();
                 ++GLOBAL_EVICTIONS;
                 break;
             }
@@ -288,95 +317,62 @@ public class Lab4
             } // End of dealing with not recently referenced elements
         } // End of filling up each individual pools
 
-        testAllPoolsLRU(poolA, poolB, poolC, poolD); //TODO remove after
-
         // Marks a victim frame from the lowest non-empty class
-        // Deals with pool A
-        int lowestIndex = 100; // arbitrarily set
-        int lowestStartTime = 100; // arbitrarily set
-        FrameTableElement returnValue = null;
-        for (FrameTableElement currentElement : poolA)
+        FrameTableElement victim = findVictimAmongPools(poolA, poolB, poolC, poolD);
+
+        // Error checking
+        if (victim == null)
         {
-            if (currentElement.getTimeAdded() < lowestStartTime)
-            {
-                lowestStartTime = currentElement.getTimeAdded();
-                lowestIndex = currentElement.getFrameTableIndex();
-                returnValue = currentElement;
-            }
+            System.err.println("Error: could not find a page to evict in LRU");
+            System.exit(1);
         }
-
-        if (returnValue != null)
-            return returnValue;
-
-        // Deals with pool B
-        lowestIndex = 100; // arbitrarily set
-        lowestStartTime = 100; // arbitrarily set
-        for (FrameTableElement currentElement : poolB)
-        {
-            if (currentElement.getTimeAdded() < lowestStartTime)
-            {
-                lowestStartTime = currentElement.getTimeAdded();
-                lowestIndex = currentElement.getFrameTableIndex();
-                returnValue = currentElement;
-            }
-        }
-
-        if (returnValue != null)
-            return returnValue;
-
-        // Deals with pool C
-        lowestIndex = 100; // arbitrarily set
-        lowestStartTime = 100; // arbitrarily set
-        for (FrameTableElement currentElement : poolC)
-        {
-            if (currentElement.getTimeAdded() < lowestStartTime)
-            {
-                lowestStartTime = currentElement.getTimeAdded();
-                lowestIndex = currentElement.getFrameTableIndex();
-                returnValue = currentElement;
-            }
-        }
-
-        if (returnValue != null)
-            return returnValue;
-
-        // Deals with pool D
-        lowestIndex = 100; // arbitrarily set
-        lowestStartTime = 100; // arbitrarily set
-        for (FrameTableElement currentElement : poolD)
-        {
-            if (currentElement.getTimeAdded() < lowestStartTime)
-            {
-                lowestStartTime = currentElement.getTimeAdded();
-                lowestIndex = currentElement.getFrameTableIndex();
-                returnValue = currentElement;
-            }
-        }
-
-        if (returnValue != null)
-            return returnValue;
-
-        System.err.println("Error: could not find a page to evict in LRU");
-        System.exit(1);
-        return null;
+        return victim;
     } // End of the evictLRU method
 
-    private static void testAllPoolsLRU(ArrayList<FrameTableElement> poolA, ArrayList<FrameTableElement> poolB,
-                                        ArrayList<FrameTableElement> poolC, ArrayList<FrameTableElement> poolD)
+    private static FrameTableElement findVictimAmongPools(ArrayList<FrameTableElement> poolA,
+                                                          ArrayList<FrameTableElement> poolB,
+                                                          ArrayList<FrameTableElement> poolC,
+                                                          ArrayList<FrameTableElement> poolD)
     {
-        System.out.println("Pool A has size: " + poolA.size());
-        System.out.println("Pool B has size: " + poolB.size());
-        System.out.println("Pool C has size: " + poolC.size());
-        System.out.println("Pool D has size: " + poolD.size());
-    } // End of the test all pools LRU method
+        // Deals with pool A
+        FrameTableElement victim = markAVictim(poolA);
+        if (victim != null)
+            return victim;
 
-    private static FrameTableElement evictRandom(Scanner lineScanner)
+        // Deals with pool B
+        victim = markAVictim(poolB);
+        if (victim != null)
+            return victim;
+
+        // Deals with pool C
+        victim = markAVictim(poolC);
+        if (victim != null)
+            return victim;
+
+        // Deals with pool D
+        victim = markAVictim(poolD);
+        if (victim != null)
+            return victim;
+        return null;
+    } // End of the find victim among pools method
+
+    private static FrameTableElement markAVictim(ArrayList<FrameTableElement> pool)
     {
-        int randomNumber = getRandomNumber(lineScanner);
-        randomReplacementNumber = randomNumber;
-        wasEvictedRandom = true;
-        return FRAME_TABLE.getFrameTable().get(randomNumber % TOTAL_NUMBER_OF_PAGES);
-    } // End of the evictRandom method
+        int lowestStartTime = 99999; // arbitrarily set, has to be larger than the total amount of time cycles
+        FrameTableElement returnValue = null;
+        for (FrameTableElement elementInPool : pool)
+        {
+            if (elementInPool.getTimeAdded() < lowestStartTime)
+            {
+                lowestStartTime = elementInPool.getTimeAdded();
+                returnValue = elementInPool;
+            }
+        }
+        return returnValue;
+    } // End of the mark a victim method
+
+    private static FrameTableElement evictRandom()
+    { return FRAME_TABLE.getFrameTable().get(randomReplacementNumber % TOTAL_NUMBER_OF_PAGES); }
 
     private static FrameTableElement evictLIFO()
     {
@@ -476,7 +472,7 @@ public class Lab4
 
     /**
      * [DONE] [Application Method] Gets the set of process in the jobmix for a given J-value
-     * @return An arraylist of processes based on the job mix number
+     * @return An arrayList of processes based on the job mix number
      */
     private static ArrayList<Process> getJobMix()
     {
@@ -525,7 +521,7 @@ public class Lab4
     } // End of the get job mix method
 
     /**
-     * [Print Method] Prints the summary output for the simulation TODO check if this works correctly
+     * [Print Method] Prints the summary output for the simulation
      */
     private static void printOutput()
     {
@@ -537,13 +533,10 @@ public class Lab4
         {
             totalNumberOfFaults += currentProcess.getNumberOfFaults();
             System.out.printf("Process %d had %d faults", currentProcess.getProcessID(), currentProcess.getNumberOfFaults());
-            // Checks
-            if (GLOBAL_EVICTIONS > 0)
-            {
-                // There was a nonzero number of evictions
-//                System.out.printf("total residency time is %d, number of faults = %d\n",//TODO remove after
-//                        currentProcess.getTotalResidencyTime(), currentProcess.getNumberOfFaults());
 
+            // Checks for eviction
+            if (currentProcess.getNumberOfEvictions() > 0)
+            {
                 System.out.printf(" and %.1f average residency\n", (double) currentProcess.getTotalResidencyTime()/
                         currentProcess.getNumberOfEvictions());
                 totalResidencySum += currentProcess.getTotalResidencyTime();
@@ -556,8 +549,7 @@ public class Lab4
         }
 
         // Outputs the global summary data
-        System.out.println();
-        System.out.print("The total number of faults is " + totalNumberOfFaults);
+        System.out.print("\nThe total number of faults is " + totalNumberOfFaults);
 
         if (GLOBAL_EVICTIONS != 0)
             System.out.printf(" and the overall average residency is %.1f.\n\n", (double) totalResidencySum/GLOBAL_EVICTIONS);

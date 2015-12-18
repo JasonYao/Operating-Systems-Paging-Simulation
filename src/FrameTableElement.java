@@ -19,44 +19,20 @@ public class FrameTableElement
         this.isActive = isActive;
     }
 
-    public boolean isActive() {
-        return isActive;
-    }
+    public boolean isActive() { return isActive; }
 
-    public void setActive(boolean active) {
-        isActive = active;
-    }
-
-    public boolean isModified() {
-        return isModified;
-    }
-
-    public void setModified(boolean modified) {
-        isModified = modified;
-    }
+    public boolean isModified() { return isModified; }
 
     public int getFrameTableIndex() {
         return frameTableIndex;
-    }
-
-    public void setFrameTableIndex(int frameTableIndex) {
-        this.frameTableIndex = frameTableIndex;
     }
 
     public int getProcessNumber() {
         return processNumber;
     }
 
-    public void setProcessNumber(int processNumber) {
-        this.processNumber = processNumber;
-    }
-
     public int getPageNumber() {
         return pageNumber;
-    }
-
-    public void setPageNumber(int pageNumber) {
-        this.pageNumber = pageNumber;
     }
 
     public boolean isLoaded() {
@@ -69,9 +45,5 @@ public class FrameTableElement
 
     public int getTimeAdded() {
         return timeAdded;
-    }
-
-    public void setTimeAdded(int timeAdded) {
-        this.timeAdded = timeAdded;
     }
 } // End of the frame table element inner class

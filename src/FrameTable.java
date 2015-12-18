@@ -12,8 +12,6 @@ public class FrameTable
         return frameTable;
     }
 
-
-
     // Start of Frame table methods
     public boolean isHit(int processID, int pageNumber)
     {
